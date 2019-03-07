@@ -7,8 +7,13 @@
 //
 
 #import "AppDelegate.h"
+#ifdef NSFoundationVersionNumber_iOS_9_x_Max
+#import <UserNotifications/UserNotifications.h>
+#endif
+#define IOS_VERSION  [UIDevice currentDevice].systemVersion.floatValue
 
-@interface AppDelegate ()
+#import <AFNetworking.h>
+@interface AppDelegate ()<UNUserNotificationCenterDelegate>
 
 @end
 
@@ -16,9 +21,169 @@
 
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    // Override point for customization after application launch.
+   ;
+    if (IOS_VERSION >= 10.0) {
+        
+        UNUserNotificationCenter * center = [UNUserNotificationCenter currentNotificationCenter];
+        
+        [center setDelegate:self];
+        
+        UNAuthorizationOptions type = UNAuthorizationOptionBadge|UNAuthorizationOptionSound|UNAuthorizationOptionAlert;
+        
+        [center requestAuthorizationWithOptions:type completionHandler:^(BOOL granted, NSError * _Nullable error) {
+            
+            if (granted) {
+                
+                NSLog(@"注册成功");
+                
+            }else{
+                
+                NSLog(@"注册失败");
+                
+            }
+            
+        }];
+        
+    }else if (IOS_VERSION >= 8.0){
+        
+        UIUserNotificationType notificationTypes = UIUserNotificationTypeBadge |
+        
+        UIUserNotificationTypeSound |
+        
+        UIUserNotificationTypeAlert;
+        
+        UIUserNotificationSettings *settings = [UIUserNotificationSettings settingsForTypes:notificationTypes categories:nil];
+        
+        [application registerUserNotificationSettings:settings];
+        
+    }else{//ios8一下
+        
+        UIRemoteNotificationType notificationTypes = UIRemoteNotificationTypeBadge |
+        
+        UIRemoteNotificationTypeSound |
+        
+        UIRemoteNotificationTypeAlert;
+        
+        [[UIApplication sharedApplication] registerForRemoteNotificationTypes:notificationTypes];
+        
+    }
+    
+    // 注册获得device Token
+    
+    [application registerForRemoteNotifications];
+   
+    
+    
     return YES;
 }
+
+
+// 将得到的deviceToken传给SDK
+
+- (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken{
+    
+    NSString *deviceTokenStr = [[[[deviceToken description]
+                                  
+                                  stringByReplacingOccurrencesOfString:@"<" withString:@""]
+                                 
+                                 stringByReplacingOccurrencesOfString:@">" withString:@""]
+                                
+                                stringByReplacingOccurrencesOfString:@" " withString:@""];
+    
+    NSLog(@"deviceTokenStr:\n%@",deviceTokenStr);
+    
+}
+// 注册deviceToken失败
+
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error{
+    
+    NSLog(@"error -- %@",error);
+    
+}
+
+
+//在前台
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler{
+    
+    // 需要执行这个方法，选择是否提醒用户，有Badge、Sound、Alert三种类型可以设置
+    NSLog(@"前台 %@",notification.request.content.userInfo);
+
+    completionHandler(UNNotificationPresentationOptionBadge|
+                      
+                      UNNotificationPresentationOptionSound|
+                      
+                      UNNotificationPresentationOptionAlert);
+    
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)())completionHandler{
+    
+    //处理推送过来的数据
+    
+    NSLog(@"后台 %@",response.notification.request.content.userInfo);
+    completionHandler();
+    
+}
+
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary * _Nonnull)userInfo fetchCompletionHandler:(void (^ _Nonnull)(UIBackgroundFetchResult))completionHandler{
+    
+    NSLog(@"didReceiveRemoteNotification:%@",userInfo);
+    
+    /*
+     
+     UIApplicationStateActive 应用程序处于前台
+     
+     UIApplicationStateBackground 应用程序在后台，用户从通知中心点击消息将程序从后台调至前台
+     
+     UIApplicationStateInactive 用用程序处于关闭状态(不在前台也不在后台)，用户通过点击通知中心的消息将客户端从关闭状态调至前台
+     
+     */
+    
+    //应用程序在前台给一个提示特别消息
+    
+    if (application.applicationState == UIApplicationStateActive) {
+        
+        //应用程序在前台
+        
+        
+    }else{
+        
+        //其他两种情况，一种在后台程序没有被杀死，另一种是在程序已经杀死。用户点击推送的消息进入app的情况处理。
+        
+        
+    }
+    
+    completionHandler(UIBackgroundFetchResultNewData);
+    
+}
+
+
+
+-(void)postToken:(NSString *)token{
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    manager.responseSerializer = [AFHTTPResponseSerializer serializer];
+    manager.requestSerializer.timeoutInterval = 10;
+    
+    [manager POST:@"" parameters:@{} progress:^(NSProgress * _Nonnull uploadProgress) {
+        
+    } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+        NSError *error = nil;
+        id obj = [NSJSONSerialization JSONObjectWithData:responseObject options:NSJSONReadingMutableLeaves|NSJSONReadingAllowFragments|NSJSONReadingMutableContainers error:&error];
+        if (error) {
+            
+            NSLog(@"%@",obj);
+        }else{
+            
+           
+        }
+        
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+        
+    }];
+
+}
+
 
 
 - (void)applicationWillResignActive:(UIApplication *)application {
